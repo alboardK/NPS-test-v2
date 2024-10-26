@@ -7,7 +7,6 @@ import numpy as np
 from wordcloud import WordCloud
 import matplotlib.pyplot as plt
 import os
-from streamlit_elements import elements, dashboard, mui, html
 
 # Configuration de la page Streamlit
 st.set_page_config(page_title="Annette K. - Dashboard NPS", layout="wide")
@@ -48,6 +47,10 @@ def load_data(filename):
     df = pd.read_csv(f"data/{filename}")
     df['Horodateur'] = pd.to_datetime(df['Horodateur'], format='%d/%m/%Y %H:%M:%S')
     df['Month'] = df['Horodateur'].dt.strftime('%Y-%m')
+    
+    # Gestion des noms complets
+    df['Nom_Complet'] = df['Votre Nom'].fillna('') + ' ' + df['Votre prénom'].fillna('')
+    df['Nom_Complet'] = df['Nom_Complet'].str.strip()
     return df
 
 # Layout du sélecteur de fichier
@@ -181,12 +184,12 @@ if selected_file:
             # Affichage des retours
             st.markdown("### Derniers retours")
             for _, row in filtered_df.iterrows():
-                with st.expander(f"{row['Nom']} {row['prénom']} - {row['Horodateur'].strftime('%d/%m/%Y')} - NPS: {row[nps_column]}"):
+                with st.expander(f"{row['Nom_Complet']} - {row['Horodateur'].strftime('%d/%m/%Y')} - NPS: {row[nps_column]}"):
                     col1, col2 = st.columns([1,1])
                     with col1:
                         st.markdown("**Informations personnelles**")
-                        st.write(f"Nom: {row['Nom']}")
-                        st.write(f"Prénom: {row['prénom']}")
+                        st.write(f"Nom: {row['Votre Nom']}")
+                        st.write(f"Prénom: {row['Votre prénom']}")
                         st.write(f"Date: {row['Horodateur'].strftime('%d/%m/%Y %H:%M')}")
                     
                     with col2:
