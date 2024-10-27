@@ -151,6 +151,9 @@ class NPSVisualizer:
                     value=value,
                     help=help_text
                 )
+        except Exception as e:
+            st.error(f"Erreur calcul métriques: {str(e)}")
+            st.error("Détails des données problématiques:", self.df['NPS_Score'].value_counts())
                 
     def show_trend_charts(self):
         """Affichage des graphiques avec gestion d'erreur améliorée"""
