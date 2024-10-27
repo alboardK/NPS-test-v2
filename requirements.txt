@@ -1,8 +1,4 @@
-streamlit==1.31.0
-pandas==2.2.0
-plotly==5.18.0
-plotly-express==0.4.1
-wordcloud==1.9.3
-matplotlib==3.8.2
-numpy==1.26.3
-streamlit-elements==0.1.0  # Pour les composants React
+streamlit
+pandas
+plotly
+google-auth
