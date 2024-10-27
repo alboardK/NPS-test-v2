@@ -53,27 +53,37 @@ def load_sheets_data():
         st.write("✅ Credentials récupérées avec succès")
         sheet_id = "1i8TU3c72YH-5sfAKcxmeuthgSeHcW3-ycg7cwzOtkrE"
         
-        # Nouvelle méthode d'accès
-        from google.oauth2.credentials import Credentials
-        import gspread
-        from oauth2client.service_account import ServiceAccountCredentials
-        
-        scope = ['https://spreadsheets.google.com/feeds',
-                 'https://www.googleapis.com/auth/drive']
-                 
         gc = gspread.authorize(credentials)
         sheet = gc.open_by_key(sheet_id)
         worksheet = sheet.get_worksheet(0)
-        data = worksheet.get_all_records()
-        df = pd.DataFrame(data)
+        
+        # Récupération des données brutes
+        all_values = worksheet.get_all_values()
+        
+        # Récupération des en-têtes (première ligne)
+        headers = all_values[0]
+        
+        # Création d'en-têtes uniques si nécessaire
+        unique_headers = []
+        seen = {}
+        for i, h in enumerate(headers):
+            if h in seen:
+                unique_headers.append(f"{h}_{seen[h]}")
+                seen[h] += 1
+            else:
+                unique_headers.append(h)
+                seen[h] = 1
+        
+        # Création du DataFrame avec les en-têtes uniques
+        df = pd.DataFrame(all_values[1:], columns=unique_headers)
         
         st.write("✅ Données chargées avec succès")
+        st.write(f"Colonnes chargées: {', '.join(df.columns)}")
         return df
         
     except Exception as e:
         st.error(f"❌ Erreur détaillée: {type(e).__name__} - {str(e)}")
         return None
-
 def main():
     st.title("Dashboard NPS Annette K.")
     
