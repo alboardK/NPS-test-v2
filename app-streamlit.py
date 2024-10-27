@@ -25,24 +25,105 @@ def get_google_credentials():
 
 # Fonction pour lister les fichiers CSV disponibles
 def get_available_data_sources():
+# Fonction pour lister les fichiers CSV disponibles
+def get_available_data_sources():
     st.write("📂 Recherche des sources de données disponibles...")
     
-    # Ajout de l'option Google Sheets
+    # Liste qui contiendra toutes les sources
     sources = ["Google Sheets (Live)"]
     st.write(f"Sources initiales: {sources}")
     
     # Lecture du dossier data
     data_dir = 'data'
-    if os.path.exists(data_dir):
-        st.write(f"✅ Dossier {data_dir} trouvé")
-        csv_files = [f for f in os.listdir(data_dir) if f.endswith('.csv')]
-        st.write(f"Fichiers CSV trouvés: {csv_files}")
-        sources.extend([f"Fichier Local: {f}" for f in csv_files])
-    else:
-        st.write(f"❌ Dossier {data_dir} non trouvé")
+    try:
+        if not os.path.exists(data_dir):
+            st.warning(f"⚠️ Le dossier {data_dir} n'existe pas. Création du dossier...")
+            os.makedirs(data_dir)
+            st.success(f"✅ Dossier {data_dir} créé avec succès")
+        
+        # Liste tous les fichiers CSV dans le dossier
+        csv_files = [f for f in os.listdir(data_dir) if f.lower().endswith('.csv')]
+        
+        if csv_files:
+            st.write(f"✅ {len(csv_files)} fichier(s) CSV trouvé(s)")
+            for file in csv_files:
+                st.write(f"📄 Fichier trouvé: {file}")
+                sources.append(f"Fichier Local: {file}")
+        else:
+            st.write("ℹ️ Aucun fichier CSV trouvé dans le dossier data")
+            
+    except Exception as e:
+        st.error(f"❌ Erreur lors de la lecture du dossier data: {str(e)}")
     
-    st.write(f"Sources finales disponibles: {sources}")
+    st.write(f"📋 Sources finales disponibles: {sources}")
     return sources
+
+def load_local_data(filename):
+    st.write(f"📂 Chargement du fichier local: {filename}")
+    try:
+        # Construction du chemin complet
+        file_path = os.path.join('data', filename)
+        st.write(f"🔍 Chemin complet: {file_path}")
+        
+        if not os.path.exists(file_path):
+            st.error(f"❌ Fichier non trouvé: {file_path}")
+            return None
+            
+        # Tentatives de lecture avec différents encodages
+        encodings = ['utf-8', 'latin-1', 'ISO-8859-1', 'cp1252']
+        df = None
+        successful_encoding = None
+        
+        for encoding in encodings:
+            try:
+                df = pd.read_csv(file_path, encoding=encoding)
+                successful_encoding = encoding
+                break
+            except UnicodeDecodeError:
+                continue
+            
+        if df is None:
+            st.error("❌ Impossible de lire le fichier avec les encodages standards")
+            return None
+            
+        st.write(f"✅ Fichier chargé avec succès (encodage: {successful_encoding})")
+        st.write(f"📊 Dimensions: {df.shape[0]} lignes x {df.shape[1]} colonnes")
+        
+        # Conversion des dates
+        if 'Horodateur' in df.columns:
+            try:
+                df['Horodateur'] = pd.to_datetime(df['Horodateur'], format='%d/%m/%Y %H:%M:%S')
+                st.write("✅ Conversion des dates réussie")
+            except Exception as e:
+                st.warning(f"⚠️ Erreur de conversion des dates: {str(e)}")
+                st.write("🔍 Premier format de date trouvé:", df['Horodateur'].iloc[0])
+        
+        # Vérification de la cohérence des données
+        st.write("🔍 Vérification des données...")
+        null_counts = df.isnull().sum()
+        if null_counts.any():
+            st.warning("⚠️ Valeurs manquantes détectées:")
+            for col, count in null_counts[null_counts > 0].items():
+                st.write(f"- {col}: {count} valeurs manquantes")
+                
+        return df
+        
+    except Exception as e:
+        st.error(f"❌ Erreur lors du chargement: {type(e).__name__} - {str(e)}")
+        return None
+
+def handle_data_source_selection(data_source):
+    """Gère la sélection et le chargement des données selon la source"""
+    if data_source == "Google Sheets (Live)":
+        st.write("🔄 Chargement des données depuis Google Sheets...")
+        return load_sheets_data()
+    elif data_source.startswith("Fichier Local:"):
+        filename = data_source.replace("Fichier Local: ", "")
+        st.write(f"📂 Chargement du fichier local: {filename}")
+        return load_local_data(filename)
+    else:
+        st.error("❌ Source de données non reconnue")
+        return None
 
 # Fonction pour charger les données depuis Google Sheets
 def load_sheets_data():
@@ -121,10 +202,12 @@ def load_sheets_data():
 def main():
     st.title("Dashboard NPS Annette K.")
     
-    # Sélection de la source de données
     st.write("🚀 Démarrage de l'application...")
+    
+    # Récupération des sources de données disponibles
     available_sources = get_available_data_sources()
     
+    # Sélecteur de source de données
     st.write("📌 Configuration du sélecteur de source...")
     data_source = st.selectbox(
         "Source des données",
@@ -135,15 +218,14 @@ def main():
     st.write(f"Source sélectionnée: {data_source}")
     
     # Chargement des données selon la source sélectionnée
-    if data_source == "Google Sheets (Live)":
-        st.write("🔄 Chargement des données depuis Google Sheets...")
-        df = load_sheets_data()
-        if df is None:
-            st.error("❌ Erreur lors du chargement des données Google Sheets")
-            return
+    df = handle_data_source_selection(data_source)
+    
+    if df is not None:
+        # Suite de votre code pour l'analyse et l'affichage des données
+        st.write("✅ Données chargées avec succès")
+        st.write(f"📊 Dimensions finales: {df.shape}")
     else:
-        # Extraction du nom du fichier
-        filename = data_source.replace("Fichier Local: ", "")
-        df = load_local_data(filename)
+        st.error("❌ Échec du chargement des données")
+
 if __name__ == "__main__":
     main()
