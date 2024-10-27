@@ -16,6 +16,34 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="collapsed"
 )
+st.markdown("""
+    <style>
+        /* Style du header */
+        .main-header {
+            padding: 1rem;
+            background-color: #262730;
+            border-radius: 0.5rem;
+            margin-bottom: 2rem;
+        }
+        /* Style des onglets */
+        .stTabs [data-baseweb="tab-list"] {
+            gap: 2rem;
+            background-color: #1E1E1E;
+            padding: 0.5rem;
+            border-radius: 0.5rem;
+        }
+        .stTabs [data-baseweb="tab"] {
+            padding: 0.5rem 2rem;
+            font-weight: 500;
+        }
+        /* Style des métriques */
+        [data-testid="stMetricValue"] {
+            font-size: 2rem;
+            font-weight: 600;
+        }
+    </style>
+""", unsafe_allow_html=True)
+
 # Cette classe DataManager a deux responsabilités principales :
     # Gérer les credentials Google (get_google_credentials)
     # Charger les données (load_data)
@@ -124,9 +152,113 @@ class NPSVisualizer:
                     help=help_text
                 )
                 
+    def show_trend_charts(self):
+        """Affichage des graphiques avec gestion d'erreur améliorée"""
+        try:
+            # Assurons-nous d'avoir des données valides
+            if self.df.empty:
+                st.warning("Aucune donnée disponible pour les graphiques")
+                return
+
+            # Préparation des données mensuelles
+            monthly_stats = []
+            
+            # Conversion explicite en datetime pour le tri
+            self.df['Month'] = pd.to_datetime(self.df['Horodateur']).dt.to_period('M')
+            
+            # Groupement par mois avec gestion d'erreur
+            for month in sorted(self.df['Month'].unique()):
+                month_data = self.df[self.df['Month'] == month]
+                total = len(month_data)
+                
+                if total > 0:
+                    stats = {
+                        'Month': month.strftime('%Y-%m'),
+                        'Total': total,
+                        'Promoteurs': len(month_data[month_data['NPS_Category'] == 'Promoteur']),
+                        'Passifs': len(month_data[month_data['NPS_Category'] == 'Passif']),
+                        'Détracteurs': len(month_data[month_data['NPS_Category'] == 'Détracteur'])
+                    }
+                    
+                    # Calcul des pourcentages
+                    stats['Promoteurs_pct'] = (stats['Promoteurs'] / total) * 100
+                    stats['Passifs_pct'] = (stats['Passifs'] / total) * 100
+                    stats['Détracteurs_pct'] = (stats['Détracteurs'] / total) * 100
+                    stats['NPS'] = stats['Promoteurs_pct'] - stats['Détracteurs_pct']
+                    
+                    monthly_stats.append(stats)
+
+            if not monthly_stats:
+                st.warning("Pas assez de données pour générer les graphiques")
+                return
+
+            # Création du DataFrame pour les graphiques
+            df_stats = pd.DataFrame(monthly_stats)
+            
+            # 1. Graphique d'évolution du NPS
+            fig_nps = px.line(
+                df_stats,
+                x='Month',
+                y='NPS',
+                title="Évolution mensuelle du Score NPS",
+                labels={'NPS': 'Score NPS (%)', 'Month': 'Mois'},
+                markers=True
+            )
+            fig_nps.update_layout(
+                xaxis_title="Mois",
+                yaxis_title="Score NPS (%)",
+                hovermode='x unified',
+                plot_bgcolor='rgba(0,0,0,0)',
+                paper_bgcolor='rgba(0,0,0,0)',
+                xaxis={'showgrid': False},
+                yaxis={'showgrid': True, 'gridcolor': 'rgba(128,128,128,0.2)'}
+            )
+            st.plotly_chart(fig_nps, use_container_width=True)
+            
+            # 2. Graphique de répartition
+            fig_categories = px.bar(
+                df_stats,
+                x='Month',
+                y=['Promoteurs_pct', 'Passifs_pct', 'Détracteurs_pct'],
+                title="Répartition mensuelle des catégories",
+                labels={
+                    'value': 'Pourcentage',
+                    'Month': 'Mois',
+                    'variable': 'Catégorie'
+                },
+                color_discrete_map={
+                    'Promoteurs_pct': '#00CC96',
+                    'Passifs_pct': '#FFA15A',
+                    'Détracteurs_pct': '#EF553B'
+                }
+            )
+            fig_categories.update_layout(
+                barmode='stack',
+                showlegend=True,
+                xaxis_title="Mois",
+                yaxis_title="Répartition (%)",
+                hovermode='x unified',
+                plot_bgcolor='rgba(0,0,0,0)',
+                paper_bgcolor='rgba(0,0,0,0)',
+                xaxis={'showgrid': False},
+                yaxis={'showgrid': True, 'gridcolor': 'rgba(128,128,128,0.2)'}
+            )
+            
+            # Mise à jour des noms dans la légende
+            new_names = {
+                'Promoteurs_pct': 'Promoteurs',
+                'Passifs_pct': 'Passifs',
+                'Détracteurs_pct': 'Détracteurs'
+            }
+            fig_categories.for_each_trace(lambda t: t.update(name=new_names[t.name]))
+            
+            st.plotly_chart(fig_categories, use_container_width=True)
+
         except Exception as e:
-            st.error(f"Erreur calcul métriques: {str(e)}")
-            st.error("Détails des données problématiques:", self.df['NPS_Score'].value_counts())
+            st.error(f"Erreur lors de la création des graphiques: {str(e)}")
+            if st.checkbox("Afficher les détails de l'erreur"):
+                st.write("Données mensuelles:", monthly_stats if 'monthly_stats' in locals() else "Non disponible")
+
 
 def main():
     # En-tête avec émoji
