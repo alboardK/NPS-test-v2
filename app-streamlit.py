@@ -280,147 +280,162 @@ class NPSVisualizer:
             st.error(f"Erreur lors de la création des graphiques: {str(e)}")
             if st.checkbox("Afficher les détails de l'erreur"):
                 st.write("Données mensuelles:", monthly_stats if 'monthly_stats' in locals() else "Non disponible")
+   
     def show_detailed_analysis(self):
-        """Affiche les analyses détaillées"""
-        
-        # Filtres communs
-        st.sidebar.header("Filtres")
-        
-        # Sélection de la période
-        date_min = self.df['Horodateur'].min()
-        date_max = self.df['Horodateur'].max()
-        period = st.sidebar.selectbox(
-            "Période d'analyse",
-            ["Tout", "Dernier mois", "Dernier trimestre", "Dernière année"]
-        )
-        
-        # Filtre des données selon la période
-        if period == "Dernier mois":
-            mask = self.df['Horodateur'] >= (date_max - pd.Timedelta(days=30))
-        elif period == "Dernier trimestre":
-            mask = self.df['Horodateur'] >= (date_max - pd.Timedelta(days=90))
-        elif period == "Dernière année":
-            mask = self.df['Horodateur'] >= (date_max - pd.Timedelta(days=365))
-        else:
-            mask = pd.Series(True, index=self.df.index)
+        """Affiche les analyses détaillées avec gestion d'erreur améliorée"""
+        try:
+            # Filtres communs
+            st.sidebar.header("Filtres")
             
-        filtered_df = self.df[mask].copy()
-        
-        # 1. Analyse des Commentaires
-        st.subheader("📝 Analyse des Commentaires")
-        
-        # Sélection de catégorie pour les commentaires
-        comment_category = st.selectbox(
-            "Filtrer par catégorie",
-            ["Tous", "Promoteurs", "Passifs", "Détracteurs"]
-        )
-        
-        if comment_category != "Tous":
-            comments_df = filtered_df[filtered_df['NPS_Category'] == comment_category]
-        else:
-            comments_df = filtered_df
-            
-        # Affichage des derniers commentaires
-        with st.expander("Derniers commentaires"):
-            for _, row in comments_df.sort_values('Horodateur', ascending=False).head(5).iterrows():
-                st.markdown(f"""
-                **Date:** {row['Horodateur'].strftime('%d/%m/%Y')}  
-                **Catégorie:** {row['NPS_Category']}  
-                **Note NPS:** {row['NPS_Score']}  
-                **Commentaire:** {row['Pourquoi cette note ?']}
-                ---
-                """)
-        
-        # 2. Analyse des Services
-        st.subheader("🎯 Analyse des Services")
-        
-        # Identification des colonnes de service
-        service_cols = [
-            "l'expérience à la salle de sport",
-            "l'expérience piscine",
-            "La qualité des coaching en groupe",
-            "la disponibilité des cours sur le planning",
-            "la disponibilité des équipements sportifs",
-            "les coachs",
-            "les maitres nageurs",
-            "le personnel d'accueil",
-            "Le commercial",
-            "l'ambiance générale",
-            "la propreté générale",
-            "les vestiaires (douches / sauna/ serviettes..)"
-        ]
-        
-        # Calcul des moyennes par service
-        service_scores = filtered_df[service_cols].mean().round(2)
-        
-        # Graphique radar des services
-        fig_radar = px.line_polar(
-            r=service_scores.values,
-            theta=service_scores.index,
-            line_close=True
-        )
-        fig_radar.update_traces(fill='toself')
-        st.plotly_chart(fig_radar)
-        
-        # 3. Analyse Réabonnement
-        st.subheader("🔄 Analyse du Réabonnement")
-        
-        # Calcul de la corrélation entre NPS et réabonnement
-        reabo_col = [col for col in filtered_df.columns if "probabilité" in col.lower()][0]
-        filtered_df['Reabo_Score'] = pd.to_numeric(
-            filtered_df[reabo_col].str.extract('(\d+)')[0], 
-            errors='coerce'
-        )
-        
-        fig_correlation = px.scatter(
-            filtered_df,
-            x='NPS_Score',
-            y='Reabo_Score',
-            color='NPS_Category',
-            title="Corrélation entre NPS et Probabilité de Réabonnement",
-            labels={
-                'NPS_Score': 'Score NPS',
-                'Reabo_Score': 'Probabilité de Réabonnement'
-            },
-            color_discrete_map={
-                'Promoteur': '#00CC96',
-                'Passif': '#FFA15A',
-                'Détracteur': '#EF553B'
-            }
-        )
-        st.plotly_chart(fig_correlation)
-        
-        # 4. Statistiques d'export (optionnel)
-        st.subheader("📊 Statistiques et Export")
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            st.metric(
-                "Taux de réponse moyen",
-                f"{len(filtered_df) / (date_max - date_min).days:.1f}",
-                help="Nombre moyen de réponses par jour"
+            # Sélection de la période
+            date_min = self.df['Horodateur'].min()
+            date_max = self.df['Horodateur'].max()
+            period = st.sidebar.selectbox(
+                "Période d'analyse",
+                ["Tout", "Dernier mois", "Dernier trimestre", "Dernière année"]
             )
             
-        with col2:
-            st.metric(
-                "Taux de commentaires",
-                f"{filtered_df['Pourquoi cette note ?'].notna().mean()*100:.1f}%",
-                help="Pourcentage de réponses avec commentaires"
+            # Filtre des données selon la période
+            if period == "Dernier mois":
+                mask = self.df['Horodateur'] >= (date_max - pd.Timedelta(days=30))
+            elif period == "Dernier trimestre":
+                mask = self.df['Horodateur'] >= (date_max - pd.Timedelta(days=90))
+            elif period == "Dernière année":
+                mask = self.df['Horodateur'] >= (date_max - pd.Timedelta(days=365))
+            else:
+                mask = pd.Series(True, index=self.df.index)
+                
+            filtered_df = self.df[mask].copy()
+            
+            # 1. Analyse des Commentaires
+            st.subheader("📝 Analyse des Commentaires")
+            
+            comment_category = st.selectbox(
+                "Filtrer par catégorie",
+                ["Tous", "Promoteurs", "Passifs", "Détracteurs"]
             )
             
-        if st.button("Exporter les données filtrées"):
-            # Création du fichier Excel en mémoire
-            output = BytesIO()
-            with pd.ExcelWriter(output, engine='openpyxl') as writer:
-                filtered_df.to_excel(writer, index=False)
+            if comment_category != "Tous":
+                comments_df = filtered_df[filtered_df['NPS_Category'] == comment_category]
+            else:
+                comments_df = filtered_df
             
-            # Téléchargement du fichier
-            st.download_button(
-                label="📥 Télécharger les données",
-                data=output.getvalue(),
-                file_name=f"nps_data_{period}.xlsx",
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-            )
+            # Identification de la colonne de commentaires
+            comment_col = [col for col in comments_df.columns if "pourquoi cette note" in col.lower()][0]
+            
+            # Affichage des derniers commentaires
+            with st.expander("Derniers commentaires"):
+                for _, row in comments_df.sort_values('Horodateur', ascending=False).head(5).iterrows():
+                    try:
+                        comment = row[comment_col] if pd.notna(row[comment_col]) else "Pas de commentaire"
+                        st.markdown(f"""
+                        **Date:** {row['Horodateur'].strftime('%d/%m/%Y')}  
+                        **Catégorie:** {row['NPS_Category']}  
+                        **Note NPS:** {row['NPS_Score']}  
+                        **Commentaire:** {comment}
+                        ---
+                        """)
+                    except Exception as e:
+                        st.warning(f"Erreur d'affichage pour une entrée: {str(e)}")
+            
+            # 2. Analyse des Services
+            st.subheader("🎯 Analyse des Services")
+            
+            # Identification des colonnes de service
+            service_cols = [
+                col for col in filtered_df.columns 
+                if any(service in col.lower() for service in [
+                    'expérience', 'qualité', 'disponibilité', 'coach',
+                    'nageur', 'accueil', 'commercial', 'ambiance', 'propreté',
+                    'vestiaire'
+                ])
+            ]
+            
+            if service_cols:
+                # Conversion en numérique avec nettoyage
+                service_data = filtered_df[service_cols].apply(
+                    lambda x: pd.to_numeric(x.str.extract('(\d+)')[0], errors='coerce')
+                )
+                
+                # Calcul des moyennes
+                service_scores = service_data.mean().round(2)
+                
+                # Graphique radar
+                fig_radar = px.line_polar(
+                    r=service_scores.values,
+                    theta=service_scores.index,
+                    line_close=True
+                )
+                fig_radar.update_traces(fill='toself')
+                fig_radar.update_layout(
+                    polar=dict(
+                        radialaxis=dict(
+                            visible=True,
+                            range=[0, 5]
+                        )
+                    )
+                )
+                st.plotly_chart(fig_radar)
+                
+                # Tableau des scores moyens
+                st.dataframe(
+                    service_scores.reset_index()
+                    .rename(columns={'index': 'Service', 0: 'Score moyen'})
+                    .sort_values('Score moyen', ascending=False)
+                )
+            
+            # 3. Analyse du Réabonnement
+            st.subheader("🔄 Analyse du Réabonnement")
+            
+            # Identification de la colonne de réabonnement
+            reabo_col = [col for col in filtered_df.columns if "probabilité" in col.lower()][0]
+            
+            if reabo_col in filtered_df.columns:
+                filtered_df['Reabo_Score'] = pd.to_numeric(
+                    filtered_df[reabo_col].str.extract('(\d+)')[0], 
+                    errors='coerce'
+                )
+                
+                fig_correlation = px.scatter(
+                    filtered_df,
+                    x='NPS_Score',
+                    y='Reabo_Score',
+                    color='NPS_Category',
+                    title="Corrélation entre NPS et Probabilité de Réabonnement",
+                    labels={
+                        'NPS_Score': 'Score NPS',
+                        'Reabo_Score': 'Probabilité de Réabonnement'
+                    },
+                    color_discrete_map={
+                        'Promoteur': '#00CC96',
+                        'Passif': '#FFA15A',
+                        'Détracteur': '#EF553B'
+                    }
+                )
+                st.plotly_chart(fig_correlation)
+            
+            # 4. Statistiques
+            st.subheader("📊 Statistiques")
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                st.metric(
+                    "Réponses par jour",
+                    f"{len(filtered_df) / max(1, (date_max - date_min).days):.1f}",
+                    help="Nombre moyen de réponses par jour"
+                )
+                
+            with col2:
+                st.metric(
+                    "Taux de commentaires",
+                    f"{filtered_df[comment_col].notna().mean()*100:.1f}%",
+                    help="Pourcentage de réponses avec commentaires"
+                )
+
+        except Exception as e:
+            st.error(f"Erreur dans l'analyse détaillée: {str(e)}")
+            if st.checkbox("Afficher les détails de l'erreur"):
+                st.write("Colonnes disponibles:", self.df.columns.tolist())
 
 def main():
     # En-tête avec émoji
