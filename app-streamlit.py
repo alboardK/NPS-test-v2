@@ -16,7 +16,51 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="collapsed"
 )
+# Cette classe DataManager a deux responsabilités principales :
+    # Gérer les credentials Google (get_google_credentials)
+    # Charger les données (load_data)
+class DataManager:
+    @staticmethod
+    @st.cache_resource
+    def get_google_credentials():
+        try:
+            return service_account.Credentials.from_service_account_info(
+                st.secrets["gcp_service_account"],
+                scopes=['https://www.googleapis.com/auth/spreadsheets.readonly']
+            )
+        except Exception as e:
+            st.error(f"Erreur credentials: {str(e)}")
+            return None
 
+    @staticmethod
+    def load_data():
+        """Charge les données avec gestion des erreurs silencieuse"""
+        try:
+            gc = gspread.service_account_from_dict(st.secrets["gcp_service_account"])
+            sheet = gc.open_by_key("1i8TU3c72YH-5sfAKcxmeuthgSeHcW3-ycg7cwzOtkrE")
+            worksheet = sheet.worksheet("Réponses")
+            
+            # Récupération des données
+            data = worksheet.get_all_values()
+            if not data:
+                st.error("Aucune donnée trouvée")
+                return None
+                
+            # Création du DataFrame
+            df = pd.DataFrame(data[1:], columns=data[0])
+            
+            # Nettoyage basique
+            df = df.dropna(axis=1, how='all')
+            
+            # Conversion des dates
+            if 'Horodateur' in df.columns:
+                df['Horodateur'] = pd.to_datetime(df['Horodateur'], format='%d/%m/%Y %H:%M:%S')
+            
+            return df
+            
+        except Exception as e:
+            st.error(f"Erreur chargement données: {str(e)}")
+            return None
 class NPSVisualizer:
     def __init__(self, df):
         self.df = df
