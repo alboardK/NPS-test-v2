@@ -51,52 +51,62 @@ def load_sheets_data():
         # Initialisation de gspread
         gc = gspread.service_account_from_dict(st.secrets["gcp_service_account"])
         sheet = gc.open_by_key("1i8TU3c72YH-5sfAKcxmeuthgSeHcW3-ycg7cwzOtkrE")
-        worksheet = sheet.get_worksheet(0)
         
-        # Récupération des dimensions de la feuille
+        # Récupération de l'onglet "Réponses"
+        st.write("📑 Recherche de l'onglet 'Réponses'...")
+        try:
+            worksheet = sheet.worksheet("Réponses")
+            st.write("✅ Onglet 'Réponses' trouvé")
+        except Exception as e:
+            st.error(f"❌ Erreur lors de l'accès à l'onglet 'Réponses': {str(e)}")
+            # Liste des onglets disponibles pour debug
+            all_worksheets = sheet.worksheets()
+            st.write("📑 Onglets disponibles:")
+            for ws in all_worksheets:
+                st.write(f"- {ws.title}")
+            return None
+        
+        # Récupération des dimensions
         rows = worksheet.row_count
         cols = worksheet.col_count
         st.write(f"📊 Dimensions de la feuille : {rows} lignes x {cols} colonnes")
         
-        # Récupération de toutes les données
-        all_values = worksheet.get_all_values()
-        st.write(f"📊 Nombre total de lignes récupérées : {len(all_values)}")
+        # Récupération des données
+        st.write("⚠️ Récupération des données...")
+        values = worksheet.get_all_values()
         
-        if len(all_values) <= 1:
-            st.error("❌ Pas assez de données récupérées")
+        if not values:
+            st.error("❌ Aucune donnée récupérée")
             return None
+            
+        st.write(f"📊 Nombre total de lignes récupérées : {len(values)}")
         
-        # Affichage des en-têtes trouvés pour debug
-        headers = all_values[0]
-        st.write("📋 En-têtes trouvés dans le fichier :")
-        for header in headers:
-            if header:  # Affiche uniquement les en-têtes non vides
-                st.write(f"- {header}")
+        # Extraction des en-têtes
+        headers = values[0]
+        st.write("📋 En-têtes trouvés :")
+        for h in headers:
+            if h:  # Affiche uniquement les en-têtes non vides
+                st.write(f"- {h}")
         
-        # Création du DataFrame avec toutes les données
-        df = pd.DataFrame(all_values[1:], columns=headers)
-        st.write(f"📊 DataFrame initial : {df.shape[0]} lignes x {df.shape[1]} colonnes")
+        # Création du DataFrame
+        df = pd.DataFrame(values[1:], columns=headers)
         
-        # Liste exacte des en-têtes existants pour vérification
-        existing_columns = [col for col in df.columns if col.strip()]  # Enlève les colonnes vides
+        # Nettoyage des colonnes vides
+        df = df.dropna(axis=1, how='all')
+        st.write(f"📊 Dimensions après nettoyage : {df.shape}")
         
-        # Si nous avons des données mais pas les bonnes colonnes, affichons les premières lignes
-        if df.shape[0] > 0:
-            st.write("🔍 Aperçu des premières lignes :")
-            st.write(df.head(2).to_dict('records'))
+        # Aperçu des données
+        st.write("🔍 Aperçu des premières lignes :")
+        st.write(df.head(2))
         
-        # Conservation de toutes les colonnes non vides pour l'instant
-        df = df[existing_columns]
-        
-        # Conversion de la colonne date si elle existe
-        date_columns = [col for col in df.columns if 'date' in col.lower() or 'horodateur' in col.lower()]
-        if date_columns:
-            date_col = date_columns[0]
+        # Conversion de la colonne Horodateur
+        if 'Horodateur' in df.columns:
             try:
-                df[date_col] = pd.to_datetime(df[date_col], format='%d/%m/%Y %H:%M:%S')
-                st.write(f"✅ Conversion des dates réussie pour la colonne {date_col}")
+                df['Horodateur'] = pd.to_datetime(df['Horodateur'], format='%d/%m/%Y %H:%M:%S')
+                st.write("✅ Conversion des dates réussie")
             except Exception as e:
                 st.warning(f"⚠️ Erreur lors de la conversion des dates : {str(e)}")
+                st.write("Premier Horodateur :", df['Horodateur'].iloc[0])
         
         st.write("✅ Chargement terminé avec succès")
         st.write(f"📊 Dimensions finales : {df.shape[0]} lignes x {df.shape[1]} colonnes")
@@ -105,6 +115,7 @@ def load_sheets_data():
         
     except Exception as e:
         st.error(f"❌ Erreur lors du chargement : {type(e).__name__} - {str(e)}")
+        st.error(f"Détails : {str(e)}")
         return None
 
 def main():
