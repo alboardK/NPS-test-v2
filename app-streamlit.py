@@ -53,82 +53,58 @@ def load_sheets_data():
         sheet = gc.open_by_key("1i8TU3c72YH-5sfAKcxmeuthgSeHcW3-ycg7cwzOtkrE")
         worksheet = sheet.get_worksheet(0)
         
-        # Récupération des dimensions de la feuille pour validation
+        # Récupération des dimensions de la feuille
         rows = worksheet.row_count
         cols = worksheet.col_count
         st.write(f"📊 Dimensions de la feuille : {rows} lignes x {cols} colonnes")
         
-        # Récupération de toutes les données en une seule fois
-        st.write("⚠️ Récupération des données brutes...")
+        # Récupération de toutes les données
         all_values = worksheet.get_all_values()
         st.write(f"📊 Nombre total de lignes récupérées : {len(all_values)}")
         
         if len(all_values) <= 1:
             st.error("❌ Pas assez de données récupérées")
             return None
-            
-        # Création du DataFrame avec toutes les données d'abord
-        df_complet = pd.DataFrame(all_values[1:], columns=all_values[0])
-        st.write(f"📊 DataFrame initial : {df_complet.shape[0]} lignes x {df_complet.shape[1]} colonnes")
         
-        # Vérification des données avant filtrage
-        st.write("📋 Premières colonnes disponibles :")
-        for col in list(df_complet.columns)[:5]:  # Affiche les 5 premières colonnes
-            st.write(f"- {col}")
-        st.write(f"... et {len(df_complet.columns) - 5} autres colonnes")
+        # Affichage des en-têtes trouvés pour debug
+        headers = all_values[0]
+        st.write("📋 En-têtes trouvés dans le fichier :")
+        for header in headers:
+            if header:  # Affiche uniquement les en-têtes non vides
+                st.write(f"- {header}")
         
-        # Liste des colonnes nécessaires avec vérification de leur présence
-        colonnes_necessaires = [
-            'Horodateur',
-            'Sur une échelle de 1 à 10 , où 1 représente "je ne recommanderais pas du tout" et 10 "Avec enthousiasme", à quel point êtes-vous susceptible de conseiller Annette K à un proche ?',
-            'Pourquoi cette note ?',
-            'Sur une échelle de 1 à 10, Quelle est la probabilité que vous soyez toujours abonné chez Annette K. dans 6 mois ?',
-            'Pourquoi cette réponse ?',
-            "l'expérience à la salle de sport",
-            "l'expérience piscine",
-            "La qualité des coaching en groupe",
-            "la disponibilité des cours sur le planning",
-            "la disponibilité des équipements sportifs",
-            "les coachs",
-            "les maitres nageurs",
-            "le personnel d'accueil",
-            "Le commercial",
-            "l'ambiance générale",
-            "la propreté générale",
-            "les vestiaires (douches / sauna/ serviettes..)"
-        ]
+        # Création du DataFrame avec toutes les données
+        df = pd.DataFrame(all_values[1:], columns=headers)
+        st.write(f"📊 DataFrame initial : {df.shape[0]} lignes x {df.shape[1]} colonnes")
         
-        # Vérification de l'existence des colonnes avant filtrage
-        colonnes_manquantes = [col for col in colonnes_necessaires if col not in df_complet.columns]
-        if colonnes_manquantes:
-            st.warning("⚠️ Colonnes manquantes dans les données source :")
-            for col in colonnes_manquantes:
-                st.write(f"- {col}")
+        # Liste exacte des en-têtes existants pour vérification
+        existing_columns = [col for col in df.columns if col.strip()]  # Enlève les colonnes vides
         
-        # Filtrage uniquement sur les colonnes existantes
-        colonnes_presentes = [col for col in colonnes_necessaires if col in df_complet.columns]
-        if not colonnes_presentes:
-            st.error("❌ Aucune colonne requise n'a été trouvée dans les données")
-            return None
-            
-        df = df_complet[colonnes_presentes].copy()
-        st.write(f"📊 Après sélection des colonnes : {df.shape[0]} lignes x {df.shape[1]} colonnes")
+        # Si nous avons des données mais pas les bonnes colonnes, affichons les premières lignes
+        if df.shape[0] > 0:
+            st.write("🔍 Aperçu des premières lignes :")
+            st.write(df.head(2).to_dict('records'))
         
-        # Conversion des dates avec gestion d'erreurs
-        if 'Horodateur' in df.columns:
+        # Conservation de toutes les colonnes non vides pour l'instant
+        df = df[existing_columns]
+        
+        # Conversion de la colonne date si elle existe
+        date_columns = [col for col in df.columns if 'date' in col.lower() or 'horodateur' in col.lower()]
+        if date_columns:
+            date_col = date_columns[0]
             try:
-                df['Horodateur'] = pd.to_datetime(df['Horodateur'], format='%d/%m/%Y %H:%M:%S')
-                st.write("✅ Conversion des dates réussie")
+                df[date_col] = pd.to_datetime(df[date_col], format='%d/%m/%Y %H:%M:%S')
+                st.write(f"✅ Conversion des dates réussie pour la colonne {date_col}")
             except Exception as e:
                 st.warning(f"⚠️ Erreur lors de la conversion des dates : {str(e)}")
-                st.write("🔍 Exemple de valeurs dans Horodateur :", df['Horodateur'].head().tolist())
         
         st.write("✅ Chargement terminé avec succès")
+        st.write(f"📊 Dimensions finales : {df.shape[0]} lignes x {df.shape[1]} colonnes")
+        
         return df
         
     except Exception as e:
         st.error(f"❌ Erreur lors du chargement : {type(e).__name__} - {str(e)}")
-        logger.error(f"Erreur détaillée : {str(e)}", exc_info=True)
         return None
 
 def main():
