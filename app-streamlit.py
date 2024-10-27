@@ -57,26 +57,56 @@ def load_sheets_data():
         sheet = gc.open_by_key("1i8TU3c72YH-5sfAKcxmeuthgSeHcW3-ycg7cwzOtkrE")
         worksheet = sheet.get_worksheet(0)
         
-        st.write("⚠️ Tentative de récupération alternative des données...")
+        st.write("⚠️ Tentative de récupération des données...")
         
         # Récupération directe des valeurs
         values = worksheet.get_all_values()
         headers = values[0]
         data = values[1:]
         
-        # Affichage des informations de débogage
-        st.write(f"📊 Nombre d'en-têtes trouvés: {len(headers)}")
-        st.write(f"📊 Nombre de lignes de données: {len(data)}")
+        # Affichage des informations de débogage avant filtrage
+        st.write(f"📊 Avant filtrage - Nombre d'en-têtes: {len(headers)}")
+        st.write(f"📊 Avant filtrage - Nombre de lignes: {len(data)}")
         
+        # Liste des colonnes nécessaires (à ajuster selon vos besoins)
+        colonnes_necessaires = [
+            'Horodateur',
+            'Sur une échelle de 1 à 10 , où 1 représente "je ne recommanderais pas du tout" et 10 "Avec enthousiasme", à quel point êtes-vous susceptible de conseiller Annette K à un proche ?',
+            'Pourquoi cette note ?',
+            'Sur une échelle de 1 à 10, Quelle est la probabilité que vous soyez toujours abonné chez Annette K. dans 6 mois ?',
+            'Pourquoi cette réponse ?',
+            "l'expérience à la salle de sport",
+            "l'expérience piscine",
+            "La qualité des coaching en groupe",
+            "la disponibilité des cours sur le planning",
+            "la disponibilité des équipements sportifs",
+            "les coachs",
+            "les maitres nageurs",
+            "le personnel d'accueil",
+            "Le commercial",
+            "l'ambiance générale",
+            "la propreté générale",
+            "les vestiaires (douches / sauna/ serviettes..)"
+        ]
+
         # Création du DataFrame
         df = pd.DataFrame(data, columns=headers)
+        
+        # Afficher les colonnes trouvées
+        st.write("📋 Colonnes trouvées dans le fichier:")
+        for col in df.columns:
+            st.write(f"- {col}")
+        
+        # Filtrer uniquement les colonnes nécessaires si elles existent
+        colonnes_presentes = [col for col in colonnes_necessaires if col in df.columns]
+        df = df[colonnes_presentes]
         
         # Conversion des types de données
         if 'Horodateur' in df.columns:
             df['Horodateur'] = pd.to_datetime(df['Horodateur'], format='%d/%m/%Y %H:%M:%S')
             
         st.write("✅ Données chargées avec succès")
-        st.write(f"📈 Dimensions du DataFrame: {df.shape}")
+        st.write(f"📈 Dimensions finales du DataFrame: {df.shape}")
         
         return df
         
