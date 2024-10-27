@@ -43,7 +43,7 @@ def get_available_data_sources():
     return sources
 
 # Fonction pour charger les données depuis Google Sheets
-ddef load_sheets_data():
+def load_sheets_data():
     st.write("🔄 Début du chargement des données Google Sheets")
     try:
         credentials = get_google_credentials()
