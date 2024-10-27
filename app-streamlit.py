@@ -160,72 +160,157 @@ def handle_data_source_selection(data_source):
         return None
 
 def calculate_nps_metrics(df):
-    nps_col = 'Sur une échelle de 1 à 10 , où 1 représente "je ne recommanderais pas du tout" et 10 "Avec enthousiasme", à quel point êtes-vous susceptible de conseiller Annette K à un proche ?'
+    """Calcule les métriques NPS avec gestion d'erreur améliorée"""
+    # Définition de la colonne NPS
+    nps_col = [col for col in df.columns if "recommand" in col.lower() and "échelle" in col.lower()]
+    if not nps_col:
+        st.error("❌ Colonne NPS non trouvée")
+        return None
+    nps_col = nps_col[0]
     
     try:
-        df[nps_col] = pd.to_numeric(df[nps_col], errors='coerce')
+        # Conversion en numérique avec nettoyage
+        df['NPS_Score'] = pd.to_numeric(df[nps_col].str.extract('(\d+)')[0], errors='coerce')
         
-        df['NPS_Category'] = df[nps_col].apply(lambda x: 
+        # Calcul des catégories NPS
+        df['NPS_Category'] = df['NPS_Score'].apply(lambda x: 
             'Promoteur' if x >= 9 
             else 'Passif' if x >= 7 
             else 'Détracteur' if x >= 0 
             else None
         )
         
-        total_responses = len(df[df[nps_col].notna()])
+        # Calculs des pourcentages
+        total_responses = len(df[df['NPS_Score'].notna()])
+        if total_responses == 0:
+            st.error("❌ Aucune réponse valide trouvée")
+            return None
+            
         promoters_pct = len(df[df['NPS_Category'] == 'Promoteur']) / total_responses * 100
         detractors_pct = len(df[df['NPS_Category'] == 'Détracteur']) / total_responses * 100
+        passifs_pct = len(df[df['NPS_Category'] == 'Passif']) / total_responses * 100
         
+        # Calcul du NPS
         nps_score = promoters_pct - detractors_pct
         
         return {
             'nps_score': round(nps_score, 1),
             'promoters_pct': round(promoters_pct, 1),
+            'passifs_pct': round(passifs_pct, 1),
             'detractors_pct': round(detractors_pct, 1),
             'total_responses': total_responses
         }
     except Exception as e:
-        st.error(f"Erreur dans le calcul du NPS: {str(e)}")
+        st.error(f"❌ Erreur dans le calcul du NPS: {str(e)}")
         return None
 
+        return None
+def show_data_source_tab(available_sources):
+    """Nouvel onglet pour la gestion des sources de données"""
+    st.header("🔄 Sources de Données")
+    
+    # Sélection de la source
+    data_source = st.selectbox(
+        "Source des données",
+        available_sources,
+        help="Sélectionnez la source des données à analyser"
+    )
+    
+    # Chargement des données
+    df = handle_data_source_selection(data_source)
+    
+    if df is not None:
+        # Affichage des informations sur les données
+        st.subheader("📊 Informations sur les données")
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            st.metric("Nombre de réponses", df.shape[0])
+        with col2:
+            st.metric("Nombre de colonnes", df.shape[1])
+        with col3:
+            date_range = df['Horodateur'].agg(['min', 'max'])
+            st.metric("Période couverte", f"{date_range['min'].strftime('%d/%m/%y')} - {date_range['max'].strftime('%d/%m/%y')}")
+        
+        # Affichage des valeurs manquantes
+        st.subheader("🔍 Analyse de la qualité des données")
+        null_counts = df.isnull().sum()
+        if null_counts.any():
+            st.warning("⚠️ Valeurs manquantes détectées:")
+            for col, count in null_counts[null_counts > 0].items():
+                st.write(f"- {col}: {count} valeurs manquantes")
+                
+        return df
+    return None
+
 def show_nps_trends_tab(df):
-    st.header("📈 Tendances NPS")
+    """Affichage amélioré des tendances NPS"""
+    st.header("📈 Tableau de Bord NPS")
     
     metrics = calculate_nps_metrics(df)
     
     if metrics:
-        col1, col2, col3, col4 = st.columns(4)
-        with col1:
-            st.metric("Score NPS", f"{metrics['nps_score']}%")
-        with col2:
-            st.metric("Promoteurs", f"{metrics['promoters_pct']}%")
-        with col3:
-            st.metric("Détracteurs", f"{metrics['detractors_pct']}%")
-        with col4:
-            st.metric("Total Réponses", metrics['total_responses'])
+        # Métriques principales avec style amélioré
+        st.subheader("Métriques Clés")
+        cols = st.columns(4)
+        with cols[0]:
+            st.metric("Score NPS", f"{metrics['nps_score']}%", 
+                     help="Net Promoter Score = % Promoteurs - % Détracteurs")
+        with cols[1]:
+            st.metric("Promoteurs", f"{metrics['promoters_pct']}%",
+                     help="Clients ayant donné une note de 9 ou 10")
+        with cols[2]:
+            st.metric("Passifs", f"{metrics['passifs_pct']}%",
+                     help="Clients ayant donné une note de 7 ou 8")
+        with cols[3]:
+            st.metric("Détracteurs", f"{metrics['detractors_pct']}%",
+                     help="Clients ayant donné une note de 0 à 6")
         
+        # Évolution temporelle
+        st.subheader("Évolution dans le temps")
+        
+        # Préparation des données mensuelles
         df['Month'] = df['Horodateur'].dt.to_period('M')
         monthly_stats = df.groupby('Month').apply(calculate_nps_metrics).apply(pd.Series)
         
+        # Graphique d'évolution NPS
         fig_nps = px.line(
             monthly_stats,
             x=monthly_stats.index.astype(str),
             y='nps_score',
-            title="Évolution du NPS",
-            labels={'x': 'Mois', 'y': 'Score NPS (%)'}
+            title="Évolution du Score NPS",
+            labels={'x': 'Mois', 'y': 'Score NPS (%)'},
+            markers=True
+        )
+        fig_nps.update_layout(
+            xaxis_title="Mois",
+            yaxis_title="Score NPS (%)",
+            hovermode='x unified'
         )
         st.plotly_chart(fig_nps)
         
+        # Graphique de répartition
         categories_by_month = df.groupby(['Month', 'NPS_Category']).size().unstack(fill_value=0)
         categories_by_month_pct = categories_by_month.div(categories_by_month.sum(axis=1), axis=0) * 100
         
         fig_categories = px.bar(
             categories_by_month_pct,
-            barmode='stack',
-            title="Répartition mensuelle des catégories",
-            labels={'value': 'Pourcentage', 'Month': 'Mois'}
+            barmode='relative',
+            title="Répartition mensuelle Promoteurs/Passifs/Détracteurs",
+            labels={'value': 'Pourcentage', 'Month': 'Mois'},
+            color_discrete_map={
+                'Promoteur': '#00CC96',
+                'Passif': '#FFA15A',
+                'Détracteur': '#EF553B'
+            }
+        )
+        fig_categories.update_layout(
+            xaxis_title="Mois",
+            yaxis_title="Répartition (%)",
+            hovermode='x unified'
         )
         st.plotly_chart(fig_categories)
+
+
 
 def show_recent_responses_tab(df):
     st.header("🔍 Dernières Réponses")
@@ -261,24 +346,24 @@ def main():
     st.title("Dashboard NPS Annette K.")
     
     available_sources = get_available_data_sources()
-    data_source = st.selectbox(
-        "Source des données",
-        available_sources,
-        help="Sélectionnez la source des données à analyser"
-    )
     
-    df = handle_data_source_selection(data_source)
+    # Création des onglets avec nouvel ordre
+    tab1, tab2, tab3 = st.tabs([
+        "📊 Tableau de Bord",
+        "📝 Réponses Récentes",
+        "🔄 Sources de Données"
+    ])
     
+    # Gestion des données dans l'onglet Sources
+    with tab3:
+        df = show_data_source_tab(available_sources)
+    
+    # Affichage des autres onglets uniquement si les données sont chargées
     if df is not None:
-        tab1, tab2 = st.tabs(["📊 Récapitulatif NPS", "📝 Réponses Récentes"])
-        
         with tab1:
             show_nps_trends_tab(df)
-            
         with tab2:
             show_recent_responses_tab(df)
-    else:
-        st.error("❌ Impossible de charger les données")
 
 if __name__ == "__main__":
     main()
