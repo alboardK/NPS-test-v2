@@ -4,6 +4,7 @@ from google.oauth2 import service_account
 from datetime import datetime, timedelta
 import plotly.express as px
 import os
+import gspread 
 
 # Configuration de l'authentification Google Sheets
 @st.cache_resource
@@ -51,39 +52,24 @@ def load_sheets_data():
             return None
             
         st.write("✅ Credentials récupérées avec succès")
-        sheet_id = "1i8TU3c72YH-5sfAKcxmeuthgSeHcW3-ycg7cwzOtkrE"
         
-        gc = gspread.authorize(credentials)
-        sheet = gc.open_by_key(sheet_id)
+        # Utilisation de gspread
+        gc = gspread.service_account_from_dict(st.secrets["gcp_service_account"])
+        sheet = gc.open_by_key("1i8TU3c72YH-5sfAKcxmeuthgSeHcW3-ycg7cwzOtkrE")
         worksheet = sheet.get_worksheet(0)
         
-        # Récupération des données brutes
-        all_values = worksheet.get_all_values()
-        
-        # Récupération des en-têtes (première ligne)
-        headers = all_values[0]
-        
-        # Création d'en-têtes uniques si nécessaire
-        unique_headers = []
-        seen = {}
-        for i, h in enumerate(headers):
-            if h in seen:
-                unique_headers.append(f"{h}_{seen[h]}")
-                seen[h] += 1
-            else:
-                unique_headers.append(h)
-                seen[h] = 1
-        
-        # Création du DataFrame avec les en-têtes uniques
-        df = pd.DataFrame(all_values[1:], columns=unique_headers)
+        # Récupération des données
+        data = worksheet.get_all_records()
+        df = pd.DataFrame(data)
         
         st.write("✅ Données chargées avec succès")
-        st.write(f"Colonnes chargées: {', '.join(df.columns)}")
         return df
         
     except Exception as e:
         st.error(f"❌ Erreur détaillée: {type(e).__name__} - {str(e)}")
         return None
+    
+
 def main():
     st.title("Dashboard NPS Annette K.")
     
