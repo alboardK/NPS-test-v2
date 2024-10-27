@@ -52,12 +52,24 @@ def load_sheets_data():
             
         st.write("✅ Credentials récupérées avec succès")
         sheet_id = "1i8TU3c72YH-5sfAKcxmeuthgSeHcW3-ycg7cwzOtkrE"
-        url = f"https://docs.google.com/spreadsheets/d/{sheet_id}/gviz/tq?tqx=out:csv"
         
-        st.write(f"📊 Tentative de lecture du Google Sheet avec l'URL: {url}")
-        df = pd.read_csv(url)
+        # Nouvelle méthode d'accès
+        from google.oauth2.credentials import Credentials
+        import gspread
+        from oauth2client.service_account import ServiceAccountCredentials
+        
+        scope = ['https://spreadsheets.google.com/feeds',
+                 'https://www.googleapis.com/auth/drive']
+                 
+        gc = gspread.authorize(credentials)
+        sheet = gc.open_by_key(sheet_id)
+        worksheet = sheet.get_worksheet(0)
+        data = worksheet.get_all_records()
+        df = pd.DataFrame(data)
+        
         st.write("✅ Données chargées avec succès")
         return df
+        
     except Exception as e:
         st.error(f"❌ Erreur détaillée: {type(e).__name__} - {str(e)}")
         return None
