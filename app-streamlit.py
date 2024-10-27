@@ -25,8 +25,6 @@ def get_google_credentials():
 
 # Fonction pour lister les fichiers CSV disponibles
 def get_available_data_sources():
-# Fonction pour lister les fichiers CSV disponibles
-def get_available_data_sources():
     st.write("📂 Recherche des sources de données disponibles...")
     
     # Liste qui contiendra toutes les sources
