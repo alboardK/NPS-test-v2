@@ -5,6 +5,7 @@ from datetime import datetime, timedelta
 import plotly.express as px
 import os
 import gspread 
+import logging
 
 # Configuration de l'authentification Google Sheets
 @st.cache_resource
@@ -20,6 +21,7 @@ def get_google_credentials():
     except Exception as e:
         st.error(f"❌ Erreur lors de la récupération des credentials: {str(e)}")
         return None
+
 
 # Fonction pour lister les fichiers CSV disponibles
 def get_available_data_sources():
@@ -46,29 +48,36 @@ def get_available_data_sources():
 def load_sheets_data():
     st.write("🔄 Début du chargement des données Google Sheets")
     try:
-        credentials = get_google_credentials()
-        if credentials is None:
-            st.error("❌ Échec de récupération des credentials")
-            return None
-            
-        st.write("✅ Credentials récupérées avec succès")
-        
+        # Initialisation de gspread
         gc = gspread.service_account_from_dict(st.secrets["gcp_service_account"])
         sheet = gc.open_by_key("1i8TU3c72YH-5sfAKcxmeuthgSeHcW3-ycg7cwzOtkrE")
         worksheet = sheet.get_worksheet(0)
         
-        st.write("⚠️ Tentative de récupération des données...")
+        # Récupération des dimensions de la feuille pour validation
+        rows = worksheet.row_count
+        cols = worksheet.col_count
+        st.write(f"📊 Dimensions de la feuille : {rows} lignes x {cols} colonnes")
         
-        # Récupération directe des valeurs
-        values = worksheet.get_all_values()
-        headers = values[0]
-        data = values[1:]
+        # Récupération de toutes les données en une seule fois
+        st.write("⚠️ Récupération des données brutes...")
+        all_values = worksheet.get_all_values()
+        st.write(f"📊 Nombre total de lignes récupérées : {len(all_values)}")
         
-        # Affichage des informations de débogage avant filtrage
-        st.write(f"📊 Avant filtrage - Nombre d'en-têtes: {len(headers)}")
-        st.write(f"📊 Avant filtrage - Nombre de lignes: {len(data)}")
+        if len(all_values) <= 1:
+            st.error("❌ Pas assez de données récupérées")
+            return None
+            
+        # Création du DataFrame avec toutes les données d'abord
+        df_complet = pd.DataFrame(all_values[1:], columns=all_values[0])
+        st.write(f"📊 DataFrame initial : {df_complet.shape[0]} lignes x {df_complet.shape[1]} colonnes")
         
-        # Liste des colonnes nécessaires (à ajuster selon vos besoins)
+        # Vérification des données avant filtrage
+        st.write("📋 Premières colonnes disponibles :")
+        for col in list(df_complet.columns)[:5]:  # Affiche les 5 premières colonnes
+            st.write(f"- {col}")
+        st.write(f"... et {len(df_complet.columns) - 5} autres colonnes")
+        
+        # Liste des colonnes nécessaires avec vérification de leur présence
         colonnes_necessaires = [
             'Horodateur',
             'Sur une échelle de 1 à 10 , où 1 représente "je ne recommanderais pas du tout" et 10 "Avec enthousiasme", à quel point êtes-vous susceptible de conseiller Annette K à un proche ?',
@@ -88,32 +97,39 @@ def load_sheets_data():
             "la propreté générale",
             "les vestiaires (douches / sauna/ serviettes..)"
         ]
-
-        # Création du DataFrame
-        df = pd.DataFrame(data, columns=headers)
         
-        # Afficher les colonnes trouvées
-        st.write("📋 Colonnes trouvées dans le fichier:")
-        for col in df.columns:
-            st.write(f"- {col}")
+        # Vérification de l'existence des colonnes avant filtrage
+        colonnes_manquantes = [col for col in colonnes_necessaires if col not in df_complet.columns]
+        if colonnes_manquantes:
+            st.warning("⚠️ Colonnes manquantes dans les données source :")
+            for col in colonnes_manquantes:
+                st.write(f"- {col}")
         
-        # Filtrer uniquement les colonnes nécessaires si elles existent
-        colonnes_presentes = [col for col in colonnes_necessaires if col in df.columns]
-        df = df[colonnes_presentes]
-        
-        # Conversion des types de données
-        if 'Horodateur' in df.columns:
-            df['Horodateur'] = pd.to_datetime(df['Horodateur'], format='%d/%m/%Y %H:%M:%S')
+        # Filtrage uniquement sur les colonnes existantes
+        colonnes_presentes = [col for col in colonnes_necessaires if col in df_complet.columns]
+        if not colonnes_presentes:
+            st.error("❌ Aucune colonne requise n'a été trouvée dans les données")
+            return None
             
-        st.write("✅ Données chargées avec succès")
-        st.write(f"📈 Dimensions finales du DataFrame: {df.shape}")
+        df = df_complet[colonnes_presentes].copy()
+        st.write(f"📊 Après sélection des colonnes : {df.shape[0]} lignes x {df.shape[1]} colonnes")
         
+        # Conversion des dates avec gestion d'erreurs
+        if 'Horodateur' in df.columns:
+            try:
+                df['Horodateur'] = pd.to_datetime(df['Horodateur'], format='%d/%m/%Y %H:%M:%S')
+                st.write("✅ Conversion des dates réussie")
+            except Exception as e:
+                st.warning(f"⚠️ Erreur lors de la conversion des dates : {str(e)}")
+                st.write("🔍 Exemple de valeurs dans Horodateur :", df['Horodateur'].head().tolist())
+        
+        st.write("✅ Chargement terminé avec succès")
         return df
         
     except Exception as e:
-        st.error(f"❌ Erreur détaillée: {type(e).__name__} - {str(e)}")
+        st.error(f"❌ Erreur lors du chargement : {type(e).__name__} - {str(e)}")
+        logger.error(f"Erreur détaillée : {str(e)}", exc_info=True)
         return None
-    
 
 def main():
     st.title("Dashboard NPS Annette K.")
