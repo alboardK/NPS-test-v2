@@ -78,8 +78,16 @@ def main():
     
     st.write(f"Source sélectionnée: {data_source}")
     
-    # Le reste du code reste identique...
-    # [Garder le reste de votre code tel quel]
-
+    # Chargement des données selon la source sélectionnée
+    if data_source == "Google Sheets (Live)":
+        st.write("🔄 Chargement des données depuis Google Sheets...")
+        df = load_sheets_data()
+        if df is None:
+            st.error("❌ Erreur lors du chargement des données Google Sheets")
+            return
+    else:
+        # Extraction du nom du fichier
+        filename = data_source.replace("Fichier Local: ", "")
+        df = load_local_data(filename)
 if __name__ == "__main__":
     main()
