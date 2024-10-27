@@ -53,44 +53,31 @@ def load_sheets_data():
             
         st.write("✅ Credentials récupérées avec succès")
         
-        # Utilisation de gspread avec gestion des en-têtes dupliqués
         gc = gspread.service_account_from_dict(st.secrets["gcp_service_account"])
         sheet = gc.open_by_key("1i8TU3c72YH-5sfAKcxmeuthgSeHcW3-ycg7cwzOtkrE")
         worksheet = sheet.get_worksheet(0)
         
-        # Récupération des données avec gestion des en-têtes
-        try:
-            data = worksheet.get_all_records(expected_headers=[
-                'Horodateur',
-                'Sur une échelle de 1 à 10 , où 1 représente "je ne recommanderais pas du tout" et 10 "Avec enthousiasme", à quel point êtes-vous susceptible de conseiller Annette K à un proche ?',
-                'Pourquoi cette note ?',
-                'Sur une échelle de 1 à 10, Quelle est la probabilité que vous soyez toujours abonné chez Annette K. dans 6 mois ?',
-                'Pourquoi cette réponse ?',
-                "l'expérience à la salle de sport",
-                "l'expérience piscine",
-                "La qualité des coaching en groupe",
-                "la disponibilité des cours sur le planning",
-                "la disponibilité des équipements sportifs",
-                "les coachs",
-                "les maitres nageurs",
-                "le personnel d'accueil",
-                "Le commercial",
-                "l'ambiance générale",
-                "la propreté générale",
-                "les vestiaires (douches / sauna/ serviettes..)"
-            ])
-        except Exception as e:
-            st.write("⚠️ Tentative de récupération alternative des données...")
-            # Si ça échoue, on essaie de récupérer toutes les valeurs et de créer le DataFrame manuellement
-            values = worksheet.get_all_values()
-            headers = values[0]
-            data = values[1:]
-            df = pd.DataFrame(data, columns=headers)
-            return df
+        st.write("⚠️ Tentative de récupération alternative des données...")
+        
+        # Récupération directe des valeurs
+        values = worksheet.get_all_values()
+        headers = values[0]
+        data = values[1:]
+        
+        # Affichage des informations de débogage
+        st.write(f"📊 Nombre d'en-têtes trouvés: {len(headers)}")
+        st.write(f"📊 Nombre de lignes de données: {len(data)}")
+        
+        # Création du DataFrame
+        df = pd.DataFrame(data, columns=headers)
+        
+        # Conversion des types de données
+        if 'Horodateur' in df.columns:
+            df['Horodateur'] = pd.to_datetime(df['Horodateur'], format='%d/%m/%Y %H:%M:%S')
             
-        df = pd.DataFrame(data)
         st.write("✅ Données chargées avec succès")
-        st.write(f"Nombre de colonnes chargées: {len(df.columns)}")
+        st.write(f"📈 Dimensions du DataFrame: {df.shape}")
+        
         return df
         
     except Exception as e:
