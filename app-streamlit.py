@@ -61,101 +61,72 @@ class DataManager:
         except Exception as e:
             st.error(f"Erreur chargement données: {str(e)}")
             return None
+        
 class NPSVisualizer:
     def __init__(self, df):
         self.df = df
-        # Identification de la colonne NPS de manière plus robuste
         self.nps_col = [col for col in df.columns if "recommand" in col.lower()][0]
         self.reabo_col = [col for col in df.columns if "probabilité" in col.lower()][0]
         self.process_nps_data()
 
     def process_nps_data(self):
-        """Traitement des données NPS avec gestion d'erreur améliorée"""
         try:
             # Nettoyage et conversion des scores
             self.df['NPS_Score'] = self.df[self.nps_col].str.extract('(\d+)').astype(float)
             
-            # Catégorisation
+            # Catégorisation avec règle française (6 = Passif)
             def categorize_nps(score):
-             if pd.isna(score): return None
-             if score >= 9: return 'Promoteur'
-             if score >= 6: return 'Passif'  # Modification ici pour inclure 6 comme passif
-             return 'Détracteur'
+                if pd.isna(score): return None
+                if score >= 9: return 'Promoteur'
+                if score >= 6: return 'Passif'
+                return 'Détracteur'
             
             self.df['NPS_Category'] = self.df['NPS_Score'].apply(categorize_nps)
-            
-            # Ajout du mois pour les tendances
             self.df['Month'] = pd.to_datetime(self.df['Horodateur']).dt.to_period('M')
             
         except Exception as e:
             st.error(f"Erreur traitement données: {str(e)}")
 
-    def show_trend_charts(self):
-        """Affichage des graphiques avec gestion d'erreur améliorée"""
+    def show_kpi_metrics(self):
+        """Affichage des métriques clés avec gestion d'erreur"""
         try:
-            # Calcul des métriques mensuelles
-            monthly_metrics = []
+            # Calcul des métriques sur les données valides
+            valid_responses = self.df[self.df['NPS_Category'].notna()]
+            total_responses = len(valid_responses)
             
-            for month in self.df['Month'].unique():
-                month_data = self.df[self.df['Month'] == month]
-                total = len(month_data)
-                if total > 0:
-                    promoters = len(month_data[month_data['NPS_Category'] == 'Promoteur'])
-                    detractors = len(month_data[month_data['NPS_Category'] == 'Détracteur'])
-                    nps = (promoters - detractors) / total * 100
-                    monthly_metrics.append({
-                        'Month': month,
-                        'NPS': nps,
-                        'Promoteurs': promoters/total*100,
-                        'Passifs': len(month_data[month_data['NPS_Category'] == 'Passif'])/total*100,
-                        'Détracteurs': detractors/total*100
-                    })
+            if total_responses == 0:
+                st.warning("Aucune réponse valide trouvée")
+                return
             
-            df_metrics = pd.DataFrame(monthly_metrics)
+            # Calcul des pourcentages
+            promoters = len(valid_responses[valid_responses['NPS_Category'] == 'Promoteur'])
+            passifs = len(valid_responses[valid_responses['NPS_Category'] == 'Passif'])
+            detractors = len(valid_responses[valid_responses['NPS_Category'] == 'Détracteur'])
             
-            # Graphique d'évolution NPS
-            fig_nps = px.line(
-                df_metrics,
-                x='Month',
-                y='NPS',
-                title="Évolution mensuelle du Score NPS",
-                labels={'NPS': 'Score NPS (%)', 'Month': 'Mois'},
-                markers=True
-            )
-            fig_nps.update_layout(
-                xaxis_title="Mois",
-                yaxis_title="Score NPS (%)",
-                hovermode='x unified',
-                plot_bgcolor='rgba(0,0,0,0)',
-                paper_bgcolor='rgba(0,0,0,0)'
-            )
-            st.plotly_chart(fig_nps, use_container_width=True)
+            promoters_pct = (promoters / total_responses) * 100
+            passifs_pct = (passifs / total_responses) * 100
+            detractors_pct = (detractors / total_responses) * 100
+            nps_score = promoters_pct - detractors_pct
             
-            # Graphique de répartition
-            fig_categories = px.bar(
-                df_metrics,
-                x='Month',
-                y=['Promoteurs', 'Passifs', 'Détracteurs'],
-                title="Répartition mensuelle des catégories",
-                labels={'value': 'Pourcentage', 'Month': 'Mois', 'variable': 'Catégorie'},
-                color_discrete_map={
-                    'Promoteurs': '#00CC96',
-                    'Passifs': '#FFA15A',
-                    'Détracteurs': '#EF553B'
-                }
-            )
-            fig_categories.update_layout(
-                barmode='relative',
-                xaxis_title="Mois",
-                yaxis_title="Répartition (%)",
-                hovermode='x unified',
-                plot_bgcolor='rgba(0,0,0,0)',
-                paper_bgcolor='rgba(0,0,0,0)'
-            )
-            st.plotly_chart(fig_categories, use_container_width=True)
+            # Affichage avec mise en forme
+            cols = st.columns(4)
+            metrics = [
+                ("Score NPS", f"{nps_score:.1f}%", "Net Promoter Score"),
+                ("Promoteurs", f"{promoters_pct:.1f}%", f"{promoters} répondants"),
+                ("Passifs", f"{passifs_pct:.1f}%", f"{passifs} répondants"),
+                ("Détracteurs", f"{detractors_pct:.1f}%", f"{detractors} répondants")
+            ]
             
+            for col, (label, value, help_text) in zip(cols, metrics):
+                col.metric(
+                    label=label,
+                    value=value,
+                    help=help_text
+                )
+                
         except Exception as e:
-            st.error(f"Erreur graphiques: {str(e)}")
+            st.error(f"Erreur calcul métriques: {str(e)}")
+            st.error("Détails des données problématiques:", self.df['NPS_Score'].value_counts())
 
 def main():
     # En-tête avec émoji
