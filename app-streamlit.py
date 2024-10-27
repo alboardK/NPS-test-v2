@@ -156,20 +156,14 @@ class NPSVisualizer:
             st.error("Détails des données problématiques:", self.df['NPS_Score'].value_counts())
                 
     def show_trend_charts(self):
-        """Affichage des graphiques avec gestion d'erreur améliorée"""
+        """Affichage des graphiques avec améliorations"""
         try:
-            # Assurons-nous d'avoir des données valides
             if self.df.empty:
                 st.warning("Aucune donnée disponible pour les graphiques")
                 return
 
-            # Préparation des données mensuelles
             monthly_stats = []
             
-            # Conversion explicite en datetime pour le tri
-            self.df['Month'] = pd.to_datetime(self.df['Horodateur']).dt.to_period('M')
-            
-            # Groupement par mois avec gestion d'erreur
             for month in sorted(self.df['Month'].unique()):
                 month_data = self.df[self.df['Month'] == month]
                 total = len(month_data)
@@ -195,17 +189,24 @@ class NPSVisualizer:
                 st.warning("Pas assez de données pour générer les graphiques")
                 return
 
-            # Création du DataFrame pour les graphiques
             df_stats = pd.DataFrame(monthly_stats)
             
-            # 1. Graphique d'évolution du NPS
+            # Graphique d'évolution NPS
             fig_nps = px.line(
                 df_stats,
                 x='Month',
                 y='NPS',
                 title="Évolution mensuelle du Score NPS",
                 labels={'NPS': 'Score NPS (%)', 'Month': 'Mois'},
-                markers=True
+                markers=True,
+                custom_data=['Total']  # Ajout du nombre total de réponses
+            )
+            fig_nps.update_traces(
+                hovertemplate="<br>".join([
+                    "Mois: %{x}",
+                    "NPS: %{y:.1f}%",
+                    "Nombre de réponses: %{customdata[0]}"
+                ])
             )
             fig_nps.update_layout(
                 xaxis_title="Mois",
@@ -218,25 +219,43 @@ class NPSVisualizer:
             )
             st.plotly_chart(fig_nps, use_container_width=True)
             
-            # 2. Graphique de répartition
+            # Graphique de répartition amélioré
+            df_stack = df_stats.copy()
+            # Réorganisation pour empiler dans l'ordre souhaité
+            stack_cols = ['Détracteurs_pct', 'Passifs_pct', 'Promoteurs_pct']
+            
             fig_categories = px.bar(
-                df_stats,
+                df_stack,
                 x='Month',
-                y=['Promoteurs_pct', 'Passifs_pct', 'Détracteurs_pct'],
+                y=stack_cols,
                 title="Répartition mensuelle des catégories",
                 labels={
-                    'value': 'Pourcentage',
+                    'value': 'Répartition (%)',
                     'Month': 'Mois',
                     'variable': 'Catégorie'
                 },
                 color_discrete_map={
-                    'Promoteurs_pct': '#00CC96',
+                    'Détracteurs_pct': '#EF553B',
                     'Passifs_pct': '#FFA15A',
-                    'Détracteurs_pct': '#EF553B'
-                }
+                    'Promoteurs_pct': '#00CC96'
+                },
+                custom_data=[  # Données pour le hover
+                    'Détracteurs', 'Passifs', 'Promoteurs', 'Total'
+                ]
             )
+            
+            # Personnalisation du hover
+            fig_categories.update_traces(
+                hovertemplate="<br>".join([
+                    "Mois: %{x}",
+                    "Pourcentage: %{y:.1f}%",
+                    "Nombre: %{customdata[0]}",
+                    "Total réponses: %{customdata[3]}"
+                ])
+            )
+            
             fig_categories.update_layout(
-                barmode='stack',
+                barmode='relative',  # Pour empiler
                 showlegend=True,
                 xaxis_title="Mois",
                 yaxis_title="Répartition (%)",
@@ -261,7 +280,147 @@ class NPSVisualizer:
             st.error(f"Erreur lors de la création des graphiques: {str(e)}")
             if st.checkbox("Afficher les détails de l'erreur"):
                 st.write("Données mensuelles:", monthly_stats if 'monthly_stats' in locals() else "Non disponible")
-
+    def show_detailed_analysis(self):
+        """Affiche les analyses détaillées"""
+        
+        # Filtres communs
+        st.sidebar.header("Filtres")
+        
+        # Sélection de la période
+        date_min = self.df['Horodateur'].min()
+        date_max = self.df['Horodateur'].max()
+        period = st.sidebar.selectbox(
+            "Période d'analyse",
+            ["Tout", "Dernier mois", "Dernier trimestre", "Dernière année"]
+        )
+        
+        # Filtre des données selon la période
+        if period == "Dernier mois":
+            mask = self.df['Horodateur'] >= (date_max - pd.Timedelta(days=30))
+        elif period == "Dernier trimestre":
+            mask = self.df['Horodateur'] >= (date_max - pd.Timedelta(days=90))
+        elif period == "Dernière année":
+            mask = self.df['Horodateur'] >= (date_max - pd.Timedelta(days=365))
+        else:
+            mask = pd.Series(True, index=self.df.index)
+            
+        filtered_df = self.df[mask].copy()
+        
+        # 1. Analyse des Commentaires
+        st.subheader("📝 Analyse des Commentaires")
+        
+        # Sélection de catégorie pour les commentaires
+        comment_category = st.selectbox(
+            "Filtrer par catégorie",
+            ["Tous", "Promoteurs", "Passifs", "Détracteurs"]
+        )
+        
+        if comment_category != "Tous":
+            comments_df = filtered_df[filtered_df['NPS_Category'] == comment_category]
+        else:
+            comments_df = filtered_df
+            
+        # Affichage des derniers commentaires
+        with st.expander("Derniers commentaires"):
+            for _, row in comments_df.sort_values('Horodateur', ascending=False).head(5).iterrows():
+                st.markdown(f"""
+                **Date:** {row['Horodateur'].strftime('%d/%m/%Y')}  
+                **Catégorie:** {row['NPS_Category']}  
+                **Note NPS:** {row['NPS_Score']}  
+                **Commentaire:** {row['Pourquoi cette note ?']}
+                ---
+                """)
+        
+        # 2. Analyse des Services
+        st.subheader("🎯 Analyse des Services")
+        
+        # Identification des colonnes de service
+        service_cols = [
+            "l'expérience à la salle de sport",
+            "l'expérience piscine",
+            "La qualité des coaching en groupe",
+            "la disponibilité des cours sur le planning",
+            "la disponibilité des équipements sportifs",
+            "les coachs",
+            "les maitres nageurs",
+            "le personnel d'accueil",
+            "Le commercial",
+            "l'ambiance générale",
+            "la propreté générale",
+            "les vestiaires (douches / sauna/ serviettes..)"
+        ]
+        
+        # Calcul des moyennes par service
+        service_scores = filtered_df[service_cols].mean().round(2)
+        
+        # Graphique radar des services
+        fig_radar = px.line_polar(
+            r=service_scores.values,
+            theta=service_scores.index,
+            line_close=True
+        )
+        fig_radar.update_traces(fill='toself')
+        st.plotly_chart(fig_radar)
+        
+        # 3. Analyse Réabonnement
+        st.subheader("🔄 Analyse du Réabonnement")
+        
+        # Calcul de la corrélation entre NPS et réabonnement
+        reabo_col = [col for col in filtered_df.columns if "probabilité" in col.lower()][0]
+        filtered_df['Reabo_Score'] = pd.to_numeric(
+            filtered_df[reabo_col].str.extract('(\d+)')[0], 
+            errors='coerce'
+        )
+        
+        fig_correlation = px.scatter(
+            filtered_df,
+            x='NPS_Score',
+            y='Reabo_Score',
+            color='NPS_Category',
+            title="Corrélation entre NPS et Probabilité de Réabonnement",
+            labels={
+                'NPS_Score': 'Score NPS',
+                'Reabo_Score': 'Probabilité de Réabonnement'
+            },
+            color_discrete_map={
+                'Promoteur': '#00CC96',
+                'Passif': '#FFA15A',
+                'Détracteur': '#EF553B'
+            }
+        )
+        st.plotly_chart(fig_correlation)
+        
+        # 4. Statistiques d'export (optionnel)
+        st.subheader("📊 Statistiques et Export")
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            st.metric(
+                "Taux de réponse moyen",
+                f"{len(filtered_df) / (date_max - date_min).days:.1f}",
+                help="Nombre moyen de réponses par jour"
+            )
+            
+        with col2:
+            st.metric(
+                "Taux de commentaires",
+                f"{filtered_df['Pourquoi cette note ?'].notna().mean()*100:.1f}%",
+                help="Pourcentage de réponses avec commentaires"
+            )
+            
+        if st.button("Exporter les données filtrées"):
+            # Création du fichier Excel en mémoire
+            output = BytesIO()
+            with pd.ExcelWriter(output, engine='openpyxl') as writer:
+                filtered_df.to_excel(writer, index=False)
+            
+            # Téléchargement du fichier
+            st.download_button(
+                label="📥 Télécharger les données",
+                data=output.getvalue(),
+                file_name=f"nps_data_{period}.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            )
 
 def main():
     # En-tête avec émoji
@@ -287,7 +446,7 @@ def main():
             visualizer.show_trend_charts()
             
         with tab2:
-            st.header("Analyses Détaillées")
+            visualizer.show_detailed_analysis()
             # ... [code pour l'analyse détaillée]
             
         with tab3:
