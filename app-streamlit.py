@@ -1,131 +1,14 @@
+# Import des bibliothèques nécessaires
 import streamlit as st
 import pandas as pd
 import plotly.express as px
 from google.oauth2 import service_account
-import os
 import gspread
 import logging
 from datetime import datetime, timedelta
+import plotly.graph_objects as go
+import numpy as np
 
-# Configuration initiale de la page
-st.set_page_config(
-    page_title="Dashboard NPS Annette K. 🏊‍♀️",
-    page_icon="🏊‍♀️",
-    layout="wide",
-    initial_sidebar_state="collapsed"
-)
-
-# Gestion du thème
-if 'theme' not in st.session_state:
-    st.session_state.theme = 'dark'
-
-# CSS pour les deux thèmes
-LIGHT_THEME = """
-    <style>
-        /* Style du header - Light */
-        .main-header {
-            padding: 1rem;
-            background-color: #f0f2f6;
-            border-radius: 0.5rem;
-            margin-bottom: 2rem;
-            color: #262730;
-        }
-        /* Style des onglets - Light */
-        .stTabs [data-baseweb="tab-list"] {
-            gap: 2rem;
-            background-color: #ffffff;
-            padding: 0.5rem;
-            border-radius: 0.5rem;
-        }
-        .stTabs [data-baseweb="tab"] {
-            padding: 0.5rem 2rem;
-            font-weight: 500;
-            color: #262730;
-        }
-        /* Style des métriques - Light */
-        [data-testid="stMetricValue"] {
-            font-size: 2rem;
-            font-weight: 600;
-            color: #262730;
-        }
-        /* Couleurs de fond - Light */
-        .stApp {
-            background-color: #ffffff;
-            color: #262730;
-        }
-        .element-container, .stMarkdown {
-            color: #262730;
-        }
-        div[data-testid="stExpander"] {
-            background-color: #f0f2f6;
-            border: 1px solid #e0e0e0;
-        }
-        /* Style du bouton toggle - Light */
-        [data-testid="baseButton-secondary"] {
-            background-color: #f0f2f6 !important;
-            border: 2px solid #262730 !important;
-            color: #262730 !important;
-        }
-    </style>
-"""
-
-DARK_THEME = """
-    <style>
-        /* Style du header - Dark */
-        .main-header {
-            padding: 1rem;
-            background-color: #262730;
-            border-radius: 0.5rem;
-            margin-bottom: 2rem;
-        }
-        /* Style des onglets - Dark */
-        .stTabs [data-baseweb="tab-list"] {
-            gap: 2rem;
-            background-color: #1E1E1E;
-            padding: 0.5rem;
-            border-radius: 0.5rem;
-        }
-        .stTabs [data-baseweb="tab"] {
-            padding: 0.5rem 2rem;
-            font-weight: 500;
-        }
-        /* Style des métriques - Dark */
-        [data-testid="stMetricValue"] {
-            font-size: 2rem;
-            font-weight: 600;
-        }
-        /* Couleurs de fond - Dark */
-        .stApp {
-            background-color: #0E1117;
-        }
-        div[data-testid="stExpander"] {
-            background-color: #262730;
-            border: 1px solid #4A4A4A;
-        }
-        /* Style du bouton toggle - Dark */
-        [data-testid="baseButton-secondary"] {
-            background-color: transparent !important;
-            border: 2px solid #4A4A4A !important;
-            border-radius: 50% !important;
-            padding: 15px !important;
-            font-size: 1.5rem !important;
-            transition: all 0.3s ease !important;
-        }
-        [data-testid="baseButton-secondary"]:hover {
-            border-color: #808080 !important;
-            transform: scale(1.1) !important;
-        }
-    </style>
-"""
-
-# Fonction pour gérer le changement de thème
-def toggle_theme():
-    st.session_state.theme = 'light' if st.session_state.theme == 'dark' else 'dark'
-    
-# Application du thème
-st.markdown(DARK_THEME if st.session_state.theme == 'dark' else LIGHT_THEME, unsafe_allow_html=True)
-
-# Classes de gestion des données et visualisation
 class DataManager:
     @staticmethod
     @st.cache_resource
@@ -262,13 +145,6 @@ class NPSVisualizer:
                 markers=True,
                 custom_data=['Total']
             )
-            fig_nps.update_traces(
-                hovertemplate="<br>".join([
-                    "Mois: %{x}",
-                    "NPS: %{y:.1f}%",
-                    "Nombre de réponses: %{customdata[0]}"
-                ])
-            )
             fig_nps.update_layout(
                 xaxis_title="Mois",
                 yaxis_title="Score NPS (%)",
@@ -304,19 +180,151 @@ class NPSVisualizer:
                 paper_bgcolor='rgba(0,0,0,0)'
             )
             
-            new_names = {
-                'Promoteurs_pct': 'Promoteurs',
-                'Passifs_pct': 'Passifs',
-                'Détracteurs_pct': 'Détracteurs'
-            }
-            fig_categories.for_each_trace(lambda t: t.update(name=new_names[t.name]))
-            
             st.plotly_chart(fig_categories, use_container_width=True)
 
         except Exception as e:
             st.error(f"Erreur graphiques: {str(e)}")
+            
+    def show_detailed_analysis(self):
+        """
+        Affiche les analyses détaillées du NPS avec:
+        - Analyse des commentaires
+        - Évaluation des services
+        - Corrélation NPS/Réabonnement
+        - Statistiques d'utilisation
+        """
+        try:
+            if self.df.empty:
+                st.warning("Aucune donnée disponible pour l'analyse détaillée")
+                return
+
+            # Section 1: Analyse des commentaires
+            st.header("💬 Analyse des Commentaires")
+            comment_col = [col for col in self.df.columns if "commentaire" in col.lower() or "avis" in col.lower()]
+            if comment_col:
+                with st.expander("Voir les derniers commentaires", expanded=True):
+                    # Filtrer les commentaires non vides
+                    comments_df = self.df[['Horodateur', 'NPS_Category', comment_col[0]]].copy()
+                    comments_df = comments_df[comments_df[comment_col[0]].notna()]
+                    comments_df = comments_df.sort_values('Horodateur', ascending=False)
+
+                    # Afficher les commentaires avec un code couleur par catégorie
+                    for _, row in comments_df.head(5).iterrows():
+                        color = {
+                            'Promoteur': 'green',
+                            'Passif': 'orange',
+                            'Détracteur': 'red'
+                        }.get(row['NPS_Category'], 'grey')
+                        
+                        st.markdown(f"""
+                            <div style='padding: 10px; border-left: 3px solid {color}; margin-bottom: 10px;'>
+                                <small>{row['Horodateur'].strftime('%d/%m/%Y')}</small><br>
+                                <strong style='color: {color};'>{row['NPS_Category']}</strong><br>
+                                {row[comment_col[0]]}
+                            </div>
+                        """, unsafe_allow_html=True)
+
+            # Section 2: Évaluation des services
+            st.header("⭐ Évaluation des Services")
+            service_cols = [col for col in self.df.columns if any(service in col.lower() 
+                        for service in ['piscine', 'coach', 'équipement', 'accueil'])]
+            
+            if service_cols:
+                # Créer un DataFrame pour les évaluations de service
+                service_ratings = pd.DataFrame()
+                for col in service_cols:
+                    service_ratings[col] = pd.to_numeric(self.df[col].str.extract('(\d+)')[0], errors='coerce')
+                
+                # Calculer les moyennes par service
+                avg_ratings = service_ratings.mean()
+                
+                # Créer un graphique en barres pour les moyennes
+                fig_services = px.bar(
+                    x=avg_ratings.index,
+                    y=avg_ratings.values,
+                    title="Satisfaction moyenne par service",
+                    labels={'x': 'Service', 'y': 'Note moyenne'},
+                    color=avg_ratings.values,
+                    color_continuous_scale='RdYlGn'  # Rouge à Vert
+                )
+                fig_services.update_layout(
+                    plot_bgcolor='rgba(0,0,0,0)',
+                    paper_bgcolor='rgba(0,0,0,0)',
+                    showlegend=False
+                )
+                st.plotly_chart(fig_services, use_container_width=True)
+
+            # Section 3: Corrélation NPS/Réabonnement
+            st.header("🔄 Analyse Réabonnement")
+            if self.reabo_col in self.df.columns:
+                # Convertir les scores de réabonnement en numérique
+                self.df['Reabo_Score'] = pd.to_numeric(
+                    self.df[self.reabo_col].str.extract('(\d+)')[0], 
+                    errors='coerce'
+                )
+                
+                # Calculer la corrélation
+                correlation = self.df['NPS_Score'].corr(self.df['Reabo_Score'])
+                
+                # Créer un scatter plot
+                fig_correlation = px.scatter(
+                    self.df,
+                    x='NPS_Score',
+                    y='Reabo_Score',
+                    title=f"Corrélation NPS vs Probabilité de Réabonnement (r={correlation:.2f})",
+                    labels={
+                        'NPS_Score': 'Score NPS',
+                        'Reabo_Score': 'Probabilité de Réabonnement'
+                    },
+                    trendline="ols"
+                )
+                fig_correlation.update_layout(
+                    plot_bgcolor='rgba(0,0,0,0)',
+                    paper_bgcolor='rgba(0,0,0,0)'
+                )
+                st.plotly_chart(fig_correlation, use_container_width=True)
+
+            # Section 4: Statistiques d'utilisation
+            st.header("📊 Statistiques d'Utilisation")
+            
+            # Calculer les statistiques mensuelles
+            monthly_stats = self.df.groupby('Month').agg({
+                'NPS_Score': ['count', 'mean'],
+                'NPS_Category': lambda x: (x == 'Promoteur').mean() * 100
+            }).reset_index()
+            
+            monthly_stats.columns = ['Month', 'Réponses', 'NPS Moyen', '% Promoteurs']
+            
+            # Afficher les KPIs du mois en cours
+            if not monthly_stats.empty:
+                current_month_stats = monthly_stats.iloc[-1]
+                cols = st.columns(3)
+                
+                cols[0].metric(
+                    "Taux de Réponse du Mois",
+                    f"{current_month_stats['Réponses']} réponses"
+                )
+                cols[1].metric(
+                    "NPS Moyen",
+                    f"{current_month_stats['NPS Moyen']:.1f}/10"
+                )
+                cols[2].metric(
+                    "% de Promoteurs",
+                    f"{current_month_stats['% Promoteurs']:.1f}%"
+                )
+
+        except Exception as e:
+            st.error(f"Erreur dans l'analyse détaillée: {str(e)}")
 
 def main():
+    # Configuration de la page
+    st.set_page_config(
+        page_title="Dashboard NPS Annette K. 🏊‍♀️",
+        page_icon="🏊‍♀️",
+        layout="wide",
+        initial_sidebar_state="collapsed"
+    )
+
     # Header avec toggle de thème
     header_container = st.container()
     with header_container:
