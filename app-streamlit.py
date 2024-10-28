@@ -9,6 +9,116 @@ from datetime import datetime, timedelta
 import plotly.graph_objects as go
 import numpy as np
 
+# Gestion du thème
+if 'theme' not in st.session_state:
+    st.session_state.theme = 'dark'
+
+# CSS pour les deux thèmes
+LIGHT_THEME = """
+    <style>
+        /* Style du header - Light */
+        .main-header {
+            padding: 1rem;
+            background-color: #f0f2f6;
+            border-radius: 0.5rem;
+            margin-bottom: 2rem;
+            color: #262730;
+        }
+        /* Style des onglets - Light */
+        .stTabs [data-baseweb="tab-list"] {
+            gap: 2rem;
+            background-color: #ffffff;
+            padding: 0.5rem;
+            border-radius: 0.5rem;
+        }
+        .stTabs [data-baseweb="tab"] {
+            padding: 0.5rem 2rem;
+            font-weight: 500;
+            color: #262730;
+        }
+        /* Style des métriques - Light */
+        [data-testid="stMetricValue"] {
+            font-size: 2rem;
+            font-weight: 600;
+            color: #262730;
+        }
+        /* Couleurs de fond - Light */
+        .stApp {
+            background-color: #ffffff;
+            color: #262730;
+        }
+        .element-container, .stMarkdown {
+            color: #262730;
+        }
+        div[data-testid="stExpander"] {
+            background-color: #f0f2f6;
+            border: 1px solid #e0e0e0;
+        }
+        /* Style du bouton toggle - Light */
+        [data-testid="baseButton-secondary"] {
+            background-color: #f0f2f6 !important;
+            border: 2px solid #262730 !important;
+            color: #262730 !important;
+        }
+    </style>
+"""
+
+DARK_THEME = """
+    <style>
+        /* Style du header - Dark */
+        .main-header {
+            padding: 1rem;
+            background-color: #262730;
+            border-radius: 0.5rem;
+            margin-bottom: 2rem;
+        }
+        /* Style des onglets - Dark */
+        .stTabs [data-baseweb="tab-list"] {
+            gap: 2rem;
+            background-color: #1E1E1E;
+            padding: 0.5rem;
+            border-radius: 0.5rem;
+        }
+        .stTabs [data-baseweb="tab"] {
+            padding: 0.5rem 2rem;
+            font-weight: 500;
+        }
+        /* Style des métriques - Dark */
+        [data-testid="stMetricValue"] {
+            font-size: 2rem;
+            font-weight: 600;
+        }
+        /* Couleurs de fond - Dark */
+        .stApp {
+            background-color: #0E1117;
+        }
+        div[data-testid="stExpander"] {
+            background-color: #262730;
+            border: 1px solid #4A4A4A;
+        }
+        /* Style du bouton toggle - Dark */
+        [data-testid="baseButton-secondary"] {
+            background-color: transparent !important;
+            border: 2px solid #4A4A4A !important;
+            border-radius: 50% !important;
+            padding: 15px !important;
+            font-size: 1.5rem !important;
+            transition: all 0.3s ease !important;
+        }
+        [data-testid="baseButton-secondary"]:hover {
+            border-color: #808080 !important;
+            transform: scale(1.1) !important;
+        }
+    </style>
+"""
+
+# Fonction pour gérer le changement de thème
+def toggle_theme():
+    st.session_state.theme = 'light' if st.session_state.theme == 'dark' else 'dark'
+    
+# Application du thème
+st.markdown(DARK_THEME if st.session_state.theme == 'dark' else LIGHT_THEME, unsafe_allow_html=True)
+
 class DataManager:
     @staticmethod
     @st.cache_resource
