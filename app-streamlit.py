@@ -545,18 +545,57 @@ class NPSVisualizer:
                 st.write("Colonnes disponibles:", self.df.columns.tolist())
 
 def main():
-    # En-tête avec émoji
-    st.markdown('<div class="main-header"><h1 style="text-align: center">Dashboard NPS Annette K. 🏊‍♀️</h1></div>', 
-                unsafe_allow_html=True)
-    
-    # Chargement silencieux des données
+    # Container pour le header avec style amélioré
+    header_container = st.container()
+    with header_container:
+        # Création de colonnes pour le titre et le toggle
+        col1, col2, col3 = st.columns([0.45, 0.1, 0.45])
+        
+        # Toggle theme au centre
+        with col2:
+            theme_icon = "🌙" if st.session_state.theme == 'light' else "☀️"
+            if st.button(
+                theme_icon,
+                help="Changer le thème clair/sombre",
+                key="theme_toggle",
+                # Style personnalisé pour le bouton
+                use_container_width=True
+            ):
+                toggle_theme()
+                st.rerun()
+        
+        # Titre après le toggle pour qu'il soit toujours visible
+        st.markdown(
+            '<div class="main-header"><h1 style="text-align: center">Dashboard NPS Annette K. 🏊‍♀️</h1></div>',
+            unsafe_allow_html=True
+        )
+
+    # Ajout de style CSS spécifique pour le toggle
+    st.markdown("""
+        <style>
+            /* Style du bouton toggle */
+            [data-testid="baseButton-secondary"] {
+                background-color: transparent !important;
+                border: 2px solid #4A4A4A !important;
+                border-radius: 50% !important;
+                padding: 15px !important;
+                font-size: 1.5rem !important;
+                transition: all 0.3s ease !important;
+            }
+            [data-testid="baseButton-secondary"]:hover {
+                border-color: #808080 !important;
+                transform: scale(1.1) !important;
+            }
+        </style>
+    """, unsafe_allow_html=True)
+
+    # Le reste de votre code main() reste identique...
     data_manager = DataManager()
     df = data_manager.load_data()
     
     if df is not None:
         visualizer = NPSVisualizer(df)
         
-        # Navigation
         tab1, tab2, tab3 = st.tabs([
             "📈 Tableau de Bord",
             "📊 Analyses Détaillées",
@@ -569,7 +608,6 @@ def main():
             
         with tab2:
             visualizer.show_detailed_analysis()
-            # ... [code pour l'analyse détaillée]
             
         with tab3:
             st.header("Configuration")
@@ -578,6 +616,3 @@ def main():
                 st.write("Colonnes:", df.columns.tolist())
                 with st.expander("Aperçu des données"):
                     st.dataframe(df.head())
-
-if __name__ == "__main__":
-    main()
