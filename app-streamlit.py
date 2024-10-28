@@ -8,7 +8,6 @@ import logging
 from datetime import datetime, timedelta
 
 
-# Configuration initiale
 st.set_page_config(
     page_title="Dashboard NPS Annette K. 🏊‍♀️",
     page_icon="🏊‍♀️",
@@ -123,12 +122,7 @@ def main():
                 toggle_theme()
                 st.rerun()
 
-st.set_page_config(
-    page_title="Dashboard NPS Annette K. 🏊‍♀️",
-    page_icon="🏊‍♀️",
-    layout="wide",
-    initial_sidebar_state="collapsed"
-)
+
 st.markdown("""
     <style>
         /* Style du header */
