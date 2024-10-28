@@ -9,6 +9,14 @@ from datetime import datetime, timedelta
 import plotly.graph_objects as go
 import numpy as np
 
+# Configuration de la page -
+st.set_page_config(
+    page_title="Dashboard NPS Annette K. 🏊‍♀️",
+    page_icon="🏊‍♀️",
+    layout="wide",
+    initial_sidebar_state="collapsed"
+)
+
 # Gestion du thème
 if 'theme' not in st.session_state:
     st.session_state.theme = 'dark'
@@ -427,13 +435,6 @@ class NPSVisualizer:
             st.error(f"Erreur dans l'analyse détaillée: {str(e)}")
 
 def main():
-    # Configuration de la page
-    st.set_page_config(
-        page_title="Dashboard NPS Annette K. 🏊‍♀️",
-        page_icon="🏊‍♀️",
-        layout="wide",
-        initial_sidebar_state="collapsed"
-    )
 
     # Header avec toggle de thème
     header_container = st.container()
