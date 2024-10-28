@@ -7,8 +7,121 @@ import gspread
 import logging
 from datetime import datetime, timedelta
 
-# Configuration initiale de Streamlit
-# ... [imports et configuration de page restent identiques]
+
+# Configuration initiale
+st.set_page_config(
+    page_title="Dashboard NPS Annette K. 🏊‍♀️",
+    page_icon="🏊‍♀️",
+    layout="wide",
+    initial_sidebar_state="collapsed"
+)
+
+# Gestion du thème
+if 'theme' not in st.session_state:
+    st.session_state.theme = 'dark'
+
+# CSS pour les deux thèmes
+LIGHT_THEME = """
+    <style>
+        /* Style du header - Light */
+        .main-header {
+            padding: 1rem;
+            background-color: #f0f2f6;
+            border-radius: 0.5rem;
+            margin-bottom: 2rem;
+            color: #262730;
+        }
+        /* Style des onglets - Light */
+        .stTabs [data-baseweb="tab-list"] {
+            gap: 2rem;
+            background-color: #ffffff;
+            padding: 0.5rem;
+            border-radius: 0.5rem;
+        }
+        .stTabs [data-baseweb="tab"] {
+            padding: 0.5rem 2rem;
+            font-weight: 500;
+            color: #262730;
+        }
+        /* Style des métriques - Light */
+        [data-testid="stMetricValue"] {
+            font-size: 2rem;
+            font-weight: 600;
+            color: #262730;
+        }
+        /* Couleurs de fond - Light */
+        .stApp {
+            background-color: #ffffff;
+            color: #262730;
+        }
+        .element-container, .stMarkdown {
+            color: #262730;
+        }
+        div[data-testid="stExpander"] {
+            background-color: #f0f2f6;
+            border: 1px solid #e0e0e0;
+        }
+    </style>
+"""
+
+DARK_THEME = """
+    <style>
+        /* Style du header - Dark */
+        .main-header {
+            padding: 1rem;
+            background-color: #262730;
+            border-radius: 0.5rem;
+            margin-bottom: 2rem;
+        }
+        /* Style des onglets - Dark */
+        .stTabs [data-baseweb="tab-list"] {
+            gap: 2rem;
+            background-color: #1E1E1E;
+            padding: 0.5rem;
+            border-radius: 0.5rem;
+        }
+        .stTabs [data-baseweb="tab"] {
+            padding: 0.5rem 2rem;
+            font-weight: 500;
+        }
+        /* Style des métriques - Dark */
+        [data-testid="stMetricValue"] {
+            font-size: 2rem;
+            font-weight: 600;
+        }
+        /* Couleurs de fond - Dark */
+        .stApp {
+            background-color: #0E1117;
+        }
+        div[data-testid="stExpander"] {
+            background-color: #262730;
+            border: 1px solid #4A4A4A;
+        }
+    </style>
+"""
+
+# Fonction pour gérer le changement de thème
+def toggle_theme():
+    st.session_state.theme = 'light' if st.session_state.theme == 'dark' else 'dark'
+    
+# Application du thème
+st.markdown(DARK_THEME if st.session_state.theme == 'dark' else LIGHT_THEME, unsafe_allow_html=True)
+
+# Dans la fonction main(), ajouter le bouton de toggle juste après le titre :
+def main():
+    # Container pour le header avec le toggle
+    with st.container():
+        col1, col2 = st.columns([0.9, 0.1])
+        with col1:
+            st.markdown(
+                '<div class="main-header"><h1 style="text-align: center">Dashboard NPS Annette K. 🏊‍♀️</h1></div>',
+                unsafe_allow_html=True
+            )
+        with col2:
+            theme_icon = "🌙" if st.session_state.theme == 'light' else "☀️"
+            if st.button(theme_icon):
+                toggle_theme()
+                st.rerun()
 
 st.set_page_config(
     page_title="Dashboard NPS Annette K. 🏊‍♀️",
